@@ -13,12 +13,17 @@ import (
 // the protocol to use when _speaking_ to other servers. Note that depending on
 // the protocol version being spoken, some otherwise understood RPC messages
 // may be refused. See dispositionRPC for details of this logic.
+// 服务端能够处理的协议版本，包含到RPC的消息以及Raft规范的日志记录。
+// 与其他服务端进行通信时，使用 config 对象的版本号ProtocolVersion 来决定使用的协议版本。
+// 注意通信时使用协议的正确版本，否则RPC消息会被拒绝处理。这个逻辑的更多详情在 dispositionRPC 中进行说明。
 //
 // There are notes about the upgrade path in the description of the versions
 // below. If you are starting a fresh cluster then there's no reason not to
 // jump right to the latest protocol version. If you need to interoperate with
 // older, version 0 Raft servers you'll need to drive the cluster through the
 // different versions in order.
+// 下面的版本描述中关于版本升级的几点需要注意。如果启动了一个新的集群，直接使用最新协议版本。
+// 如果需要兼容老版本，需要在集群中，根据顺序启动0版本的服务端。
 //
 // The version details are complicated, but here's a summary of what's required
 // to get from a version 0 cluster to version 3:
@@ -115,6 +120,7 @@ const (
 )
 
 // Config provides any necessary configuration for the Raft server.
+// Raft 服务需要的所有配置
 type Config struct {
 	// ProtocolVersion allows a Raft server to inter-operate with older
 	// Raft servers running an older version of the code. This is used to
@@ -212,9 +218,11 @@ func DefaultConfig() *Config {
 }
 
 // ValidateConfig is used to validate a sane configuration
+// 验证配置合法
 func ValidateConfig(config *Config) error {
 	// We don't actually support running as 0 in the library any more, but
 	// we do understand it.
+	// 不在支持 0 版本协议，但是依然可以使用。
 	protocolMin := ProtocolVersionMin
 	if protocolMin == 0 {
 		protocolMin = 1

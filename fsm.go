@@ -10,11 +10,13 @@ import (
 
 // FSM provides an interface that can be implemented by
 // clients to make use of the replicated log.
+// 复制日志使用的FSM，有限状态机接口
 type FSM interface {
 	// Apply log is invoked once a log entry is committed.
 	// It returns a value which will be made available in the
 	// ApplyFuture returned by Raft.Apply method if that
 	// method was called on the same Raft node as the FSM.
+	// 日志提交后调用应用日志。
 	Apply(*Log) interface{}
 
 	// Snapshot is used to support log compaction. This call should
@@ -46,6 +48,7 @@ type FSMSnapshot interface {
 // runFSM is a long running goroutine responsible for applying logs
 // to the FSM. This is done async of other logs since we don't want
 // the FSM to block our internal operations.
+// 服务routine，应用日志到FSM。异步不会阻塞其他操作。
 func (r *Raft) runFSM() {
 	var lastIndex, lastTerm uint64
 

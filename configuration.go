@@ -155,6 +155,7 @@ func hasVote(configuration Configuration, id ServerID) bool {
 
 // checkConfiguration tests a cluster membership configuration for common
 // errors.
+// checkConfiguration 检查集群关系配置
 func checkConfiguration(configuration Configuration) error {
 	idSet := make(map[ServerID]bool)
 	addressSet := make(map[ServerAddress]bool)
@@ -277,6 +278,8 @@ func nextConfiguration(current Configuration, currentIndex uint64, change config
 // encodePeers is used to serialize a Configuration into the old peers format.
 // This is here for backwards compatibility when operating with a mix of old
 // servers and should be removed once we deprecate support for protocol version 1.
+// encodePeers 序列化到老的格式。
+// 兼容混合版本的集群，停止对版本1的支持后需要被移除。
 func encodePeers(configuration Configuration, trans Transport) []byte {
 	// Gather up all the voters, other suffrage types are not supported by
 	// this data format.
