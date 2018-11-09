@@ -12,6 +12,7 @@ import (
 )
 
 const (
+	// 最小的检查频率
 	minCheckInterval = 10 * time.Millisecond
 )
 
