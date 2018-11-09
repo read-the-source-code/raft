@@ -90,6 +90,9 @@ The leader must accept new log entries and replicate to all the other followers.
 In addition, if stale reads are not acceptable, all queries must also be performed on
 the leader.
 
+Raft 的节点只有三种状态：follower, candidate or leader之一。所有节点都是以 follower 启动。
+在这个状态下，节点可以接收来自 leader 的日志以及选举请求。
+
 Once a cluster has a leader, it is able to accept new log entries. A client can
 request that a leader append a new log entry, which is an opaque binary blob to
 Raft. The leader then writes the entry to durable storage and attempts to replicate
