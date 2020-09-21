@@ -25,16 +25,19 @@ var (
 // getRPCHeader returns an initialized RPCHeader struct for the given
 // Raft instance. This structure is sent along with RPC requests and
 // responses.
+// getRPCHeader 返回当前实例用的RPC头对象
 func (r *Raft) getRPCHeader() RPCHeader {
 	return RPCHeader{
-		ProtocolVersion: r.conf.ProtocolVersion,
+		ProtocolVersion: r.conf.ProtocolVersion, // 协议版本
 	}
 }
 
 // checkRPCHeader houses logic about whether this instance of Raft can process
 // the given RPC message.
+// checkRPCHeader 检查当前节点是否可以处理给定的RPC消息
 func (r *Raft) checkRPCHeader(rpc RPC) error {
 	// Get the header off the RPC message.
+	// 取得消息头, Command 需要实现 WithRPCHeader 的接口
 	wh, ok := rpc.Command.(WithRPCHeader)
 	if !ok {
 		return fmt.Errorf("RPC does not have a header")
@@ -43,6 +46,7 @@ func (r *Raft) checkRPCHeader(rpc RPC) error {
 
 	// First check is to just make sure the code can understand the
 	// protocol at all.
+	// 首先检查协议版本，目前支持 0 - 3
 	if header.ProtocolVersion < ProtocolVersionMin ||
 		header.ProtocolVersion > ProtocolVersionMax {
 		return ErrUnsupportedProtocol
@@ -54,6 +58,8 @@ func (r *Raft) checkRPCHeader(rpc RPC) error {
 	// currently what we want, and in general support one version back. We
 	// may need to revisit this policy depending on how future protocol
 	// changes evolve.
+	// 然后检查是否支持改消息。目前不会支持 0，从2开始支持，并往回支持一个版本
+	// 将来协议有所调整时，这个策略会有所调整
 	if header.ProtocolVersion < r.conf.ProtocolVersion-1 {
 		return ErrUnsupportedProtocol
 	}
@@ -63,6 +69,7 @@ func (r *Raft) checkRPCHeader(rpc RPC) error {
 
 // getSnapshotVersion returns the snapshot version that should be used when
 // creating snapshots, given the protocol version in use.
+// getSnapshotVersion 返回创建快照用的版本
 func getSnapshotVersion(protocolVersion ProtocolVersion) SnapshotVersion {
 	// Right now we only have two versions and they are backwards compatible
 	// so we don't need to look at the protocol version.
@@ -71,27 +78,31 @@ func getSnapshotVersion(protocolVersion ProtocolVersion) SnapshotVersion {
 
 // commitTuple is used to send an index that was committed,
 // with an optional associated future that should be invoked.
+// commitTuple 提交元组，提交索引和可选的 future 结果
 type commitTuple struct {
 	log    *Log
 	future *logFuture
 }
 
 // leaderState is state that is used while we are a leader.
+// leaderState leader 的 state
 type leaderState struct {
-	commitCh   chan struct{}
-	commitment *commitment
-	inflight   *list.List // list of logFuture in log index order
-	replState  map[ServerID]*followerReplication
-	notify     map[*verifyFuture]struct{}
+	commitCh   chan struct{}                     // commit channel
+	commitment *commitment                       // 提交对象
+	inflight   *list.List                        // list of logFuture in log index order // logFure的链表，按照索引排序
+	replState  map[ServerID]*followerReplication // follower 复制对象
+	notify     map[*verifyFuture]struct{}        // 通知
 	stepDown   chan struct{}
 }
 
 // setLeader is used to modify the current leader of the cluster
+// setLeader 修改当前集群的 leader
 func (r *Raft) setLeader(leader ServerAddress) {
 	r.leaderLock.Lock()
 	oldLeader := r.leader
 	r.leader = leader
 	r.leaderLock.Unlock()
+	// 更换新 leader 后需要发送 leader 的观察
 	if oldLeader != leader {
 		r.observe(LeaderObservation{leader: leader})
 	}
@@ -100,6 +111,7 @@ func (r *Raft) setLeader(leader ServerAddress) {
 // requestConfigChange is a helper for the above functions that make
 // configuration change requests. 'req' describes the change. For timeout,
 // see AddVoter.
+// requestConfigChange 配置变更请求的工具函数，'req' 描述变更。
 func (r *Raft) requestConfigChange(req configurationChangeRequest, timeout time.Duration) IndexFuture {
 	var timer <-chan time.Time
 	if timeout > 0 {
@@ -120,18 +132,22 @@ func (r *Raft) requestConfigChange(req configurationChangeRequest, timeout time.
 }
 
 // run is a long running goroutine that runs the Raft FSM.
+// run 常驻 goroutine 来运行 Raft FSM
 func (r *Raft) run() {
 	for {
 		// Check if we are doing a shutdown
+		// 检查是否需要退出
 		select {
 		case <-r.shutdownCh:
 			// Clear the leader to prevent forwarding
+			// 清除 leader，防止转发
 			r.setLeader("")
 			return
 		default:
 		}
 
 		// Enter into a sub-FSM
+		// 根据角色进入 sub-FSM: Follower, Candidate, Leader
 		switch r.getState() {
 		case Follower:
 			r.runFollower()
@@ -144,52 +160,67 @@ func (r *Raft) run() {
 }
 
 // runFollower runs the FSM for a follower.
+// runFollower follower 模式
 func (r *Raft) runFollower() {
 	didWarn := false
 	r.logger.Printf("[INFO] raft: %v entering Follower state (Leader: %q)", r, r.Leader())
+	// metrics 计数增加
 	metrics.IncrCounter([]string{"raft", "state", "follower"}, 1)
+	// 随机 1 - 2 倍配置心跳时间
 	heartbeatTimer := randomTimeout(r.conf.HeartbeatTimeout)
+
+	// 主循环体
 	for {
 		select {
-		case rpc := <-r.rpcCh:
+		case rpc := <-r.rpcCh: // 收到 RPC 消息
 			r.processRPC(rpc)
 
-		case c := <-r.configurationChangeCh:
+		case c := <-r.configurationChangeCh: // 收到配置变更消息
 			// Reject any operations since we are not the leader
+			// 因为不是 leader 将拒绝所有操作
 			c.respond(ErrNotLeader)
 
-		case a := <-r.applyCh:
+		case a := <-r.applyCh: // 收到提交信息
 			// Reject any operations since we are not the leader
+			// 因为不是 leader 将拒绝所有操作
 			a.respond(ErrNotLeader)
 
-		case v := <-r.verifyCh:
+		case v := <-r.verifyCh: // 收到确认消息
 			// Reject any operations since we are not the leader
+			// 因为不是 leader 将拒绝所有操作
 			v.respond(ErrNotLeader)
 
-		case r := <-r.userRestoreCh:
+		case r := <-r.userRestoreCh: // 收到用户恢复消息
 			// Reject any restores since we are not the leader
+			// 因为不是 leader 将拒绝所有操作
 			r.respond(ErrNotLeader)
 
-		case c := <-r.configurationsCh:
+		case c := <-r.configurationsCh: // 收到配置消息
+			// 直接复制并替换
 			c.configurations = r.configurations.Clone()
 			c.respond(nil)
 
-		case b := <-r.bootstrapCh:
+		case b := <-r.bootstrapCh: // 收到启动
 			b.respond(r.liveBootstrap(b.configuration))
 
-		case <-heartbeatTimer:
+		case <-heartbeatTimer: // 心跳时间到
+			// 检查
 			// Restart the heartbeat timer
+			// 重置心跳定时器，避免惊群
 			heartbeatTimer = randomTimeout(r.conf.HeartbeatTimeout)
 
 			// Check if we have had a successful contact
+			// 取得最近联系者
 			lastContact := r.LastContact()
+			// 如果最近联系时间小于心跳时间，忽略本次心跳过程
 			if time.Now().Sub(lastContact) < r.conf.HeartbeatTimeout {
 				continue
 			}
 
 			// Heartbeat failed! Transition to the candidate state
-			lastLeader := r.Leader()
-			r.setLeader("")
+			// 心跳失败，过度到候选人状态
+			lastLeader := r.Leader() // 当前任期的 leader
+			r.setLeader("")          // 清除 leader
 
 			if r.configurations.latestIndex == 0 {
 				if !didWarn {
@@ -203,13 +234,14 @@ func (r *Raft) runFollower() {
 					didWarn = true
 				}
 			} else {
+				// 开始选举
 				r.logger.Printf(`[WARN] raft: Heartbeat timeout from %q reached, starting election`, lastLeader)
 				metrics.IncrCounter([]string{"raft", "transition", "heartbeat_timeout"}, 1)
 				r.setState(Candidate)
 				return
 			}
 
-		case <-r.shutdownCh:
+		case <-r.shutdownCh: // 退出程序
 			return
 		}
 	}

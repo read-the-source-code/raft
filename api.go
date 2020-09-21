@@ -53,7 +53,7 @@ var (
 // Raft implements a Raft node.
 // Raft 节点的结构体
 type Raft struct {
-	raftState
+	raftState // stage.go
 
 	// protocolVersion is used to inter-operate with Raft servers running
 	// different versions of the library. See comments in config.go for more
@@ -88,7 +88,7 @@ type Raft struct {
 	fsmMutateCh chan interface{}
 
 	// fsmSnapshotCh is used to trigger a new snapshot being taken
-	// fsmSnapshotCh 用于触发产生新快照的通道
+	// fsmSnapshotCh 用于触发产生新快照的阻塞通道，产生快照请求后，会通过这个来等待
 	fsmSnapshotCh chan *reqSnapshotFuture
 
 	// lastContact is the last time we had contact from the
@@ -266,7 +266,8 @@ func BootstrapCluster(conf *Config, logs LogStore, stable StableStore,
 // safe way to force a given configuration without actually altering the log to
 // insert any new entries, which could cause conflicts with other servers with
 // different state.
-// RecoverCluster 在丢失大多节点时，当前配置无法恢复，使用新配置恢复集群，比如在同一时间好几个服务挂掉的情况。
+// RecoverCluster 在丢失大多节点时，当前配置无法恢复，使用新配置恢复集群，
+// 比如在同一时间好几个服务挂掉的情况。
 // 是通过读取当前服务的所有状态，产生快照，然后截断 Raft 日志来处理。
 // 这个唯一安全避免冲突的安全方式。
 //
@@ -529,17 +530,17 @@ func NewRaft(conf *Config, fsm FSM, logs LogStore, stable StableStore, snaps Sna
 	// Create Raft struct.
 	// 构造Raft结构体
 	r := &Raft{
-		protocolVersion: protocolVersion,
-		applyCh:         make(chan *logFuture),
-		conf:            *conf,
-		fsm:             fsm,
-		fsmMutateCh:     make(chan interface{}, 128),
-		fsmSnapshotCh:   make(chan *reqSnapshotFuture),
-		leaderCh:        make(chan bool),
-		localID:         localID,
-		localAddr:       localAddr,
-		logger:          logger,
-		logs:            logs,
+		protocolVersion:       protocolVersion,
+		applyCh:               make(chan *logFuture),
+		conf:                  *conf,
+		fsm:                   fsm,
+		fsmMutateCh:           make(chan interface{}, 128),
+		fsmSnapshotCh:         make(chan *reqSnapshotFuture),
+		leaderCh:              make(chan bool),
+		localID:               localID,
+		localAddr:             localAddr,
+		logger:                logger,
+		logs:                  logs,
 		configurationChangeCh: make(chan *configurationChangeFuture),
 		configurations:        configurations{},
 		rpcCh:                 trans.Consumer(),

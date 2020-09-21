@@ -8,6 +8,7 @@ import (
 )
 
 // Future is used to represent an action that may occur in the future.
+// Future 也是一个比较常见的抽象，用于存储发生在未来的动作
 type Future interface {
 	// Error blocks until the future arrives and then
 	// returns the error status of the future.
@@ -15,6 +16,9 @@ type Future interface {
 	// calls will return the same value.
 	// Note that it is not OK to call this method
 	// twice concurrently on the same Future instance.
+	// Error 会阻塞直到结果产生，然后返回是否有错误。
+	// 可能会被调用多次，但都会返回相同的值。
+	// 并发地调用2次不好。
 	Error() error
 }
 
@@ -169,6 +173,7 @@ type userSnapshotFuture struct {
 
 	// opener is a function used to open the snapshot. This is filled in
 	// once the future returns with no error.
+	// opener 回调。在打开快照成功时设置一次
 	opener func() (*SnapshotMeta, io.ReadCloser, error)
 }
 

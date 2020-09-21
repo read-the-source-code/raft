@@ -12,7 +12,7 @@ type RaftState uint32
 
 const (
 	// Follower is the initial state of a Raft node.
-	// Follower 是节点的初始状态。
+	// Follower 状态, Follower 是节点的初始状态。
 	Follower RaftState = iota
 
 	// Candidate is one of the valid states of a Raft node.
@@ -72,7 +72,7 @@ type raftState struct {
 
 	// protects 4 next fields
 	// 线程安全提供给下面的4个字段
-	// TODO: 为什么uint64需要锁，W/R？
+	// TODO: 给last字段的操作加锁？为何不能使用原子操作，避免读取到过时的数据？
 	lastLock sync.Mutex
 
 	// Cache the latest snapshot index/term
@@ -86,17 +86,18 @@ type raftState struct {
 	lastLogTerm  uint64
 
 	// Tracks running goroutines
-	// 运行的 goroutines 跟踪
+	// goroutines 的 waitgroup,等待运行结束
 	routinesGroup sync.WaitGroup
 
 	// The current state
-	// 当前状态
+	// 当前节点的状态
 	state RaftState
 }
 
 // 获取当前状态
 func (r *raftState) getState() RaftState {
 	// 取得状态值的地址，返回通过原子操作读取地址的值(类型转换)
+	// 使用原子操作避免读取过时数据
 	// TODO: 为什么需要通过地址来操作？
 	stateAddr := (*uint32)(&r.state)
 	return RaftState(atomic.LoadUint32(stateAddr))
@@ -153,7 +154,7 @@ func (r *raftState) setLastSnapshot(index, term uint64) {
 	r.lastLock.Unlock()
 }
 
-// TODO: 下面几个为什么需要用过atomic来处理？
+// 下面几个需要用atomic来处理
 
 // 获取提交的序号
 func (r *raftState) getCommitIndex() uint64 {
@@ -178,6 +179,7 @@ func (r *raftState) setLastApplied(index uint64) {
 // Start a goroutine and properly handle the race between a routine
 // starting and incrementing, and exiting and decrementing.
 // 启动一个 goroutine，更好地处理协程启动和关闭的竞争。
+// 简单封装，方便使用
 func (r *raftState) goFunc(f func()) {
 	r.routinesGroup.Add(1)
 	go func() {
@@ -186,6 +188,7 @@ func (r *raftState) goFunc(f func()) {
 	}()
 }
 
+// 等待 goroutine 全部结束
 func (r *raftState) waitShutdown() {
 	r.routinesGroup.Wait()
 }

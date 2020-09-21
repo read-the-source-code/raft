@@ -134,32 +134,39 @@ type Config struct {
 
 	// HeartbeatTimeout specifies the time in follower state without
 	// a leader before we attempt an election.
+	// HeartbeatTimeout follower 尝试启动下一轮选举的时间
 	HeartbeatTimeout time.Duration
 
 	// ElectionTimeout specifies the time in candidate state without
 	// a leader before we attempt an election.
+	// ElectionTimeout candidate 候选人 选举超时时间
 	ElectionTimeout time.Duration
 
 	// CommitTimeout controls the time without an Apply() operation
 	// before we heartbeat to ensure a timely commit. Due to random
 	// staggering, may be delayed as much as 2x this value.
+	// CommitTimeout 自动提交时间，避免惊群，实际时间为 1 - 2x
 	CommitTimeout time.Duration
 
 	// MaxAppendEntries controls the maximum number of append entries
 	// to send at once. We want to strike a balance between efficiency
 	// and avoiding waste if the follower is going to reject because of
 	// an inconsistent log.
+	// MaxAppendEntries 单次提交最大条目数。需要在性能和因不一致而拒绝造成的浪费中权衡
 	MaxAppendEntries int
 
 	// If we are a member of a cluster, and RemovePeer is invoked for the
 	// local node, then we forget all peers and transition into the follower state.
 	// If ShutdownOnRemove is is set, we additional shutdown Raft. Otherwise,
 	// we can become a leader of a cluster containing only this node.
+	// ShutdownOnRemove 如果节点脱离集群，设置了会直接关闭，否则启动新一轮Raft选举并成为
+	// 自己单节点集群的leader
 	ShutdownOnRemove bool
 
 	// TrailingLogs controls how many logs we leave after a snapshot. This is
 	// used so that we can quickly replay logs on a follower instead of being
 	// forced to send an entire snapshot.
+	// TrailingLogs 一次快照留下多少日志
 	TrailingLogs uint64
 
 	// SnapshotInterval controls how often we check if we should perform a snapshot.

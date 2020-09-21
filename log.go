@@ -13,13 +13,13 @@ const (
 	// 检测领导关系
 	LogNoop
 
-	// LogAddPeer is used to add a new peer. This should only be used with
+	// LogAddPeerDeprecated is used to add a new peer. This should only be used with
 	// older protocol versions designed to be compatible with unversioned
 	// Raft servers. See comments in config.go for details.
 	// LogAddPeer: 添加节点协议的版本小于集群协议版本
 	LogAddPeerDeprecated
 
-	// LogRemovePeer is used to remove an existing peer. This should only be
+	// LogRemovePeerDeprecated is used to remove an existing peer. This should only be
 	// used with older protocol versions designed to be compatible with
 	// unversioned Raft servers. See comments in config.go for details.
 	// LogRemovePeer: 删除节点协议的版本小于集群协议版本
@@ -37,7 +37,7 @@ const (
 	// LogConfiguration establishes a membership change configuration. It is
 	// created when a server is added, removed, promoted, etc. Only used
 	// when protocol version 1 or greater is in use.
-	// 配置变更。在服务添加，移除，promoted（TODO:没理解）时会创建。
+	// 配置变更。在服务添加，移除，提名(???)等时会创建
 	// 协议版本大于等于1时才使用。
 	LogConfiguration
 )
@@ -64,6 +64,7 @@ type Log struct {
 
 // LogStore is used to provide an interface for storing
 // and retrieving logs in a durable fashion.
+// LogStore 日志存储接口，用于刷写/获取日志，以及获取第一个和最后一个日志索引
 type LogStore interface {
 	// FirstIndex returns the first index written. 0 for no entries.
 	FirstIndex() (uint64, error)

@@ -25,6 +25,7 @@ func (r *RPC) Respond(resp interface{}, err error) {
 
 // Transport provides an interface for network transports
 // to allow Raft to communicate with other nodes.
+// 传输层提供用于和其他节点通信的接口
 type Transport interface {
 	// Consumer returns a channel that can be used to
 	// consume and respond to RPC requests.

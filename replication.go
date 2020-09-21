@@ -26,6 +26,7 @@ var (
 
 // followerReplication is in charge of sending snapshots and log entries from
 // this leader during this particular term to a remote follower.
+// followerReplication 负责当前任期从 leader 发送快照和日志到 follower
 type followerReplication struct {
 	// peer contains the network address and ID of the remote follower.
 	peer Server
@@ -138,9 +139,9 @@ RPC:
 			lastLogIdx, _ := r.getLastLog()
 			shouldStop = r.replicateTo(s, lastLogIdx)
 		// This is _not_ our heartbeat mechanism but is to ensure
-		// followers quickly learn the leader's commit index when 
-		// raft commits stop flowing naturally. The actual heartbeats 
-		// can't do this to keep them unblocked by disk IO on the 
+		// followers quickly learn the leader's commit index when
+		// raft commits stop flowing naturally. The actual heartbeats
+		// can't do this to keep them unblocked by disk IO on the
 		// follower. See https://github.com/hashicorp/raft/issues/282.
 		case <-randomTimeout(r.conf.CommitTimeout):
 			lastLogIdx, _ := r.getLastLog()

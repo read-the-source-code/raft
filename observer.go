@@ -91,15 +91,18 @@ func (r *Raft) DeregisterObserver(or *Observer) {
 }
 
 // observe sends an observation to every observer.
+// observe 发送通知/观察给订阅/观察者
 func (r *Raft) observe(o interface{}) {
 	// In general observers should not block. But in any case this isn't
 	// disastrous as we only hold a read lock, which merely prevents
 	// registration / deregistration of observers.
+	// 通常情况下不应该阻塞。不过问题不大，我们仅用读锁来防止观察者的注册和注销。
 	r.observersLock.RLock()
 	defer r.observersLock.RUnlock()
 	for _, or := range r.observers {
 		// It's wasteful to do this in the loop, but for the common case
 		// where there are no observers we won't create any objects.
+		// 循环里做这个有些浪费，但常见情况下，没有观察者我们不会创建任何对象。
 		ob := Observation{Raft: r, Data: o}
 		if or.filter != nil && !or.filter(&ob) {
 			continue
